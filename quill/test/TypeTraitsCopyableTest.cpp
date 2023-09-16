@@ -16,12 +16,19 @@ TEST_SUITE_BEGIN("TypeTraitsCopyable");
 
 using namespace quill::detail;
 
+struct TriviallyCopyableButNotTrivial
+{
+  explicit TriviallyCopyableButNotTrivial(TriviallyCopyableButNotTrivial const&) = default;
+  explicit TriviallyCopyableButNotTrivial(int x) : m(x + 1) {}
+  int m;
+};
+
 struct TaggedNonTrivial
 {
 public:
   using copy_loggable = std::true_type;
 
-  explicit TaggedNonTrivial(std::string  x) : x(std::move(x)){};
+  explicit TaggedNonTrivial(std::string x) : x(std::move(x)){};
 
 private:
   std::string x;
@@ -30,7 +37,7 @@ private:
 struct NonTrivial
 {
 public:
-  explicit NonTrivial(std::string  x) : x(std::move(x)){};
+  explicit NonTrivial(std::string x) : x(std::move(x)){};
 
 private:
   std::string x;
@@ -69,6 +76,20 @@ TEST_CASE("is_copyable_pair")
   static_assert(is_copyable_pair_v<std::pair<int, int>>, "_");
   static_assert(is_copyable_pair_v<std::pair<std::string, const int>>, "_");
   static_assert(is_copyable_pair_v<std::pair<std::string, std::string>>, "_");
+  static_assert(
+    is_copyable_pair_v<std::pair<std::pair<std::string, std::string>, std::pair<int, int>>>, "_");
+}
+
+TEST_CASE("is_copyable_optional")
+{
+  static_assert(is_copyable_optional_v<std::optional<int>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<bool>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<const int>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<const std::string>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<std::string>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<std::pair<std::string, int>>>, "_");
+  static_assert(is_copyable_optional_v<std::optional<std::optional<std::pair<std::string, int>>>>,
+                "_");
 }
 
 TEST_CASE("is_container")
@@ -98,6 +119,7 @@ TEST_CASE("is_copyable")
   static_assert(is_copyable_v<std::string>, "_");
   static_assert(is_copyable_v<void*>, "_");
   static_assert(is_copyable_v<TaggedNonTrivial>, "_");
+  static_assert(is_copyable_v<TriviallyCopyableButNotTrivial>, "_");
 
   // built in - not copyable
   static_assert(!is_copyable_v<NonTrivial>, "_");
@@ -114,7 +136,8 @@ TEST_CASE("is_copyable")
   static_assert(is_copyable_v<std::pair<float, std::string>>, "_");
   static_assert(is_copyable_v<std::pair<TaggedNonTrivial, std::string>>, "_");
   static_assert(is_copyable_v<std::pair<TaggedNonTrivial, TaggedNonTrivial>>, "_");
-
+  static_assert(is_copyable_v<std::pair<TaggedNonTrivial, TriviallyCopyableButNotTrivial>>, "_");
+  
   // pairs - not copyable
   static_assert(!is_copyable_v<std::pair<NonTrivial, std::string>>, "_");
 
@@ -157,6 +180,23 @@ TEST_CASE("is_copyable")
   // reference wrapper
   static_assert(!is_copyable_v<std::reference_wrapper<int>>, "-");
   static_assert(!is_copyable_v<std::vector<std::reference_wrapper<int>>>, "-");
+
+  // optional
+  static_assert(is_copyable_v<std::optional<bool>>, "_");
+  static_assert(is_copyable_v<std::optional<const int>>, "_");
+  static_assert(is_copyable_v<std::optional<const std::string>>, "_");
+  static_assert(is_copyable_v<std::optional<std::string>>, "_");
+  static_assert(is_copyable_v<std::optional<std::pair<std::string, int>>>, "_");
+
+  // tuples - not copyable
+  static_assert(!is_copyable_v<std::optional<NonTrivial>>, "_");
+}
+
+TEST_CASE("are_copyable")
+{
+  // built in - copyable
+  static_assert(are_copyable_v<int, Enum, std::string, TaggedNonTrivial>, "_");
+  static_assert(!are_copyable_v<int, Enum, std::string, NonTrivial>, "_");
 }
 
 TEST_SUITE_END();

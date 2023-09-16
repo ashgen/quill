@@ -7,102 +7,79 @@ set(TARGET_NAME quill)
 
 # header files
 set(HEADER_FILES
-        # Bundled invoke
-        include/quill/bundled/invoke/invoke.h
-
         # quill
         include/quill/detail/backend/BackendWorker.h
-        include/quill/detail/backend/BacktraceLogRecordStorage.h
-        include/quill/detail/backend/FreeListAllocator.h
+        include/quill/detail/backend/BacktraceStorage.h
         include/quill/detail/backend/StringFromTime.h
         include/quill/detail/backend/TimestampFormatter.h
-
-        include/quill/detail/events/BacktraceEvent.h
-        include/quill/detail/events/BaseEvent.h
-        include/quill/detail/events/FlushEvent.h
-        include/quill/detail/events/LogEvent.h
-
-        include/quill/detail/misc/AlignedAllocator.h
+        include/quill/detail/backend/TransitEventBuffer.h
         include/quill/detail/misc/Attributes.h
         include/quill/detail/misc/Common.h
         include/quill/detail/misc/FileUtilities.h
-        include/quill/detail/misc/Macros.h
         include/quill/detail/misc/Os.h
         include/quill/detail/misc/Rdtsc.h
         include/quill/detail/misc/RdtscClock.h
-        include/quill/detail/misc/RecursiveSpinlock.h
-        include/quill/detail/misc/Spinlock.h
-        include/quill/detail/misc/StringView.h
-        include/quill/detail/misc/TypeTraits.h
         include/quill/detail/misc/TypeTraitsCopyable.h
-        include/quill/detail/misc/TypeTraitsSerializable.h
         include/quill/detail/misc/Utilities.h
-
-        include/quill/detail/serialize/Deserialize.h
-        include/quill/detail/serialize/Serialize.h
-        include/quill/detail/serialize/SerializationMetadata.h
-        include/quill/detail/serialize/TypeDescriptor.h
-
-        include/quill/detail/spsc_queue/BoundedSPSCEventQueue.h
-        include/quill/detail/spsc_queue/BoundedSPSCRawQueue.h
-        include/quill/detail/spsc_queue/UnboundedSPSCEventQueue.h
-
-        include/quill/detail/Config.h
+        include/quill/detail/spsc_queue/BoundedQueue.h
+        include/quill/detail/spsc_queue/UnboundedQueue.h
         include/quill/detail/HandlerCollection.h
         include/quill/detail/LoggerCollection.h
         include/quill/detail/LoggerDetails.h
         include/quill/detail/LogMacros.h
         include/quill/detail/LogManager.h
-        include/quill/detail/LogManagerSingleton.h
+        include/quill/detail/Serialize.h
         include/quill/detail/ThreadContext.h
         include/quill/detail/ThreadContextCollection.h
         include/quill/detail/SignalHandler.h
+
+        include/quill/clock/TimestampClock.h
+
         include/quill/filters/FilterBase.h
+
         include/quill/handlers/ConsoleHandler.h
         include/quill/handlers/FileHandler.h
         include/quill/handlers/Handler.h
+        include/quill/handlers/JsonFileHandler.h
+        include/quill/handlers/NullHandler.h
         include/quill/handlers/RotatingFileHandler.h
         include/quill/handlers/StreamHandler.h
-        include/quill/handlers/TimeRotatingFileHandler.h
+
+        include/quill/Config.h
         include/quill/Fmt.h
         include/quill/Logger.h
         include/quill/LogLevel.h
-        include/quill/LogMacroMetadata.h
+        include/quill/MacroMetadata.h
         include/quill/PatternFormatter.h
         include/quill/Quill.h
         include/quill/QuillError.h
+        include/quill/TransitEvent.h
+        include/quill/Clock.h
         include/quill/TweakMe.h
         include/quill/Utility.h
-        include/quill/Version.h
         )
 
 # source files
 set(SOURCE_FILES
         src/detail/backend/BackendWorker.cpp
-        src/detail/backend/BacktraceLogRecordStorage.cpp
-        src/detail/backend/FreeListAllocator.cpp
+        src/detail/backend/BacktraceStorage.cpp
         src/detail/backend/TimestampFormatter.cpp
         src/detail/backend/StringFromTime.cpp
+        src/detail/backend/TransitEventBuffer.cpp
         src/detail/misc/FileUtilities.cpp
         src/detail/misc/Os.cpp
         src/detail/misc/RdtscClock.cpp
-        src/detail/misc/RecursiveSpinlock.cpp
-        src/detail/misc/Spinlock.cpp
         src/detail/misc/Utilities.cpp
-        src/detail/Config.cpp
-        src/detail/Deserialize.cpp
         src/detail/HandlerCollection.cpp
         src/detail/LoggerCollection.cpp
-        src/detail/LogManagerSingleton.cpp
         src/detail/SignalHandler.cpp
-        src/detail/ThreadContextCollection.cpp
 
         src/handlers/ConsoleHandler.cpp
         src/handlers/FileHandler.cpp
         src/handlers/Handler.cpp
+        src/handlers/JsonFileHandler.cpp
         src/handlers/RotatingFileHandler.cpp
         src/handlers/StreamHandler.cpp
-        src/handlers/TimeRotatingFileHandler.cpp
 
         src/LogLevel.cpp
         src/PatternFormatter.cpp
@@ -113,38 +90,54 @@ set(SOURCE_FILES
 if (NOT QUILL_FMT_EXTERNAL)
     # if not using external fmt, include the bundled version of libfmt
     list(APPEND HEADER_FILES
+            include/quill/bundled/fmt/args.h
             include/quill/bundled/fmt/chrono.h
             include/quill/bundled/fmt/color.h
             include/quill/bundled/fmt/compile.h
             include/quill/bundled/fmt/core.h
             include/quill/bundled/fmt/format.h
             include/quill/bundled/fmt/format-inl.h
-            include/quill/bundled/fmt/locale.h
             include/quill/bundled/fmt/os.h
             include/quill/bundled/fmt/ostream.h
-            include/quill/bundled/fmt/posix.h
             include/quill/bundled/fmt/printf.h
-            include/quill/bundled/fmt/ranges.h)
+            include/quill/bundled/fmt/ranges.h
+            include/quill/bundled/fmt/std.h
+            include/quill/bundled/fmt/xchar.h)
 
     list(APPEND SOURCE_FILES
             src/bundled/fmt/format.cc
             src/bundled/fmt/os.cc)
 endif ()
 
-if (BUILD_SHARED_LIBS)
-    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif ()
-
 # Add as a library
 add_library(${TARGET_NAME} "")
-
 add_library(${TARGET_NAME}::${TARGET_NAME} ALIAS ${TARGET_NAME})
 
+if (BUILD_SHARED_LIBS)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    target_compile_definitions(${TARGET_NAME} PRIVATE QUILL_DLL_EXPORT INTERFACE QUILL_BUILD_SHARED)
+    set_target_properties(${TARGET_NAME} PROPERTIES CXX_VISIBILITY_PRESET default
+            VISIBILITY_INLINES_HIDDEN OFF
+            POSITION_INDEPENDENT_CODE TRUE)
+else ()
+    # static library
+    if (QUILL_DISABLE_POSITION_INDEPENDENT_CODE)
+        set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE FALSE)
+    else ()
+        set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+    endif ()
+endif ()
+
 if (QUILL_NO_EXCEPTIONS)
+    target_compile_definitions(${TARGET_NAME} PUBLIC -DQUILL_NO_EXCEPTIONS)
+
     if (NOT MSVC)
         target_compile_options(${TARGET_NAME} PRIVATE -fno-exceptions)
     endif ()
+endif ()
+
+if (QUILL_NO_THREAD_NAME_SUPPORT)
+    target_compile_definitions(${TARGET_NAME} PUBLIC -DQUILL_NO_THREAD_NAME_SUPPORT)
 endif ()
 
 # Add target sources
@@ -170,10 +163,14 @@ else ()
     set(PKG_CONFIG_REQUIRES fmt)
 endif ()
 
-if(MINGW)
+if (MINGW)
     # strftime requires this when using MinGw to correctly format the time ..
     target_link_libraries(${TARGET_NAME} PUBLIC ucrtbase)
-endif()
+endif ()
+
+if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+    target_link_libraries(${TARGET_NAME} PUBLIC stdc++fs)
+endif ()
 
 # Add include directories for this library
 target_include_directories(${TARGET_NAME}
@@ -186,12 +183,15 @@ target_include_directories(${TARGET_NAME}
 # Compiler options
 target_compile_options(${TARGET_NAME} PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
-        -Wall -Wextra -Wconversion -pedantic -Wfatal-errors -Wno-unused-private-field -Wno-gnu-zero-variadic-macro-arguments>
-        $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4324>)
+        -Wall -Wextra -Wconversion -pedantic -Wfatal-errors -Wno-unused-private-field -Wno-gnu-zero-variadic-macro-arguments -Wno-unused-parameter>
+        $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4324 /wd4189 /wd4996 /wd4100 /wd4127 /wd4702>)
 
-# TODO:: use MultiByteToWideChar() and WideCharToMultiByte() from <Windows.h> instead of covecvt
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    target_compile_options(${TARGET_NAME} PRIVATE /WX /EHsc)
+    if (NOT QUILL_NO_EXCEPTIONS)
+        target_compile_options(${TARGET_NAME} PUBLIC /EHsc)
+    endif ()
+
+    target_compile_options(${TARGET_NAME} PRIVATE /WX)
     target_compile_definitions(${TARGET_NAME} PRIVATE _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
 endif ()
 
@@ -257,9 +257,23 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
     install(EXPORT ${targets_export_name} DESTINATION ${QUILL_CMAKE_DIR}
             NAMESPACE quill::)
 
+    # Install the examples
+    if (QUILL_BUILD_EXAMPLES)
+        install(TARGETS quill_example_backtrace quill_example_configure_backend quill_example_console_colours
+                quill_example_console_colours_with_custom_formatter quill_example_custom_clock quill_example_custom_clock_advanced
+                quill_example_custom_console_colours quill_example_trivial quill_example_logging_to_file quill_example_multiple_handlers
+                quill_example_quick_start quill_example_signal_handler quill_example_stdout_multiple_formatters quill_example_custom_formatter
+                quill_example_custom_formatter_thread_name quill_example_custom_handler quill_example_daily_file_rotation
+                quill_example_file_rotation quill_example_filters quill_example_handler_log_levels quill_example_json_structured_log
+                quill_example_trivial_system_clock quill_example_trivial_file_logging quill_example_user_defined_types
+                quill_example_bounded_queue_message_dropping quill_example_bounded_queue_blocking quill_example_file_callbacks
+                quill_example_wake_up_logging_thread
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif ()
+
     # Copy the headers
     if (QUILL_FMT_EXTERNAL)
-        install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/quill DESTINATION ${QUILL_INC_DIR} PATTERN "bundled/fmt" EXCLUDE)
+        install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/quill DESTINATION ${QUILL_INC_DIR} PATTERN "bundled" EXCLUDE)
     else ()
         install(DIRECTORY ${CMAKE_CURRENT_LIST_DIR}/include/quill DESTINATION ${QUILL_INC_DIR})
     endif ()
@@ -296,4 +310,3 @@ if (QUILL_MASTER_PROJECT OR QUILL_ENABLE_INSTALL)
     set(CPACK_RPM_PACKAGE_DESCRIPTION "Asynchronous Low Latency C++ Logging Library")
     include(CPack)
 endif ()
-

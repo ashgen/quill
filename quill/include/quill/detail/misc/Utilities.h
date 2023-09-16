@@ -10,15 +10,15 @@
 #include <algorithm>                      // for min
 #include <array>                          // for array
 #include <cassert>                        // for assert
-#include <cstdint>                        // for uint64_t, uintptr_t
-#include <cstdio>                         // for size_t
-#include <cstring>                        // for memcpy, strlen
-#include <string>                         // for string, wstring
+#include <cmath>
+#include <cstdint> // for uint64_t, uintptr_t
+#include <cstdio>  // for size_t
+#include <cstring> // for memcpy, strlen
+#include <limits>
+#include <string> // for string, wstring
 #include <vector>
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /**
  * Check if a number is a power of 2
@@ -32,35 +32,23 @@ QUILL_NODISCARD constexpr bool is_pow_of_two(uint64_t number) noexcept
 }
 
 /**
- * Constexpr string length
- * @param str input string
- * @return the length of the string
+ * Round up to the next power of 2
+ * @param number input
+ * @return the next power of 2
  */
-QUILL_NODISCARD constexpr size_t strlength(char const* str)
+template <typename T>
+QUILL_NODISCARD inline T next_power_of_2(T n)
 {
-  return *str ? 1 + strlength(str + 1) : 0;
+  constexpr T max_power_of_2 = (std::numeric_limits<T>::max() >> 1) + 1;
+
+  if (n >= max_power_of_2)
+  {
+    return max_power_of_2;
+  }
+
+  return is_pow_of_two(static_cast<uint64_t>(n)) ? n : static_cast<T>(std::pow(2, log2(n) + 1));
 }
 
-/**
- * Constexpr string length
- * @param str input string
- * @return the length of the string
- */
-QUILL_NODISCARD constexpr size_t strlength(wchar_t const* str)
-{
-  return *str ? 1 + strlength(str + 1) : 0;
-}
-
-/**
- * Constexpr string comparison
- * @param lhs string 1
- * @param rhs string 2
- * @return true if they are equal
- */
-QUILL_NODISCARD constexpr bool strequal(char const* lhs, char const* rhs)
-{
-  return (*lhs && *rhs) ? (*lhs == *rhs && strequal(lhs + 1, rhs + 1)) : (!*lhs && !*rhs);
-}
 /**
  * Finds and replaces all occurrences of the old value in the given string
  * @param str The string we want to search and replace
@@ -107,10 +95,29 @@ void safe_strncpy(std::array<char, N>& destination, char const* source) noexcept
  * @param pointer a pointer the object
  * @return an aligned pointer for the given object
  */
-template <uint64_t alignment, typename T>
+template <size_t alignment, typename T>
 QUILL_NODISCARD QUILL_ATTRIBUTE_HOT constexpr T* align_pointer(void* pointer) noexcept
 {
-  static_assert(is_pow_of_two(alignment), "alignment must be a power of two");
+  if constexpr (alignment == 0)
+  {
+    return reinterpret_cast<T*>(pointer);
+  }
+  else
+  {
+    static_assert(is_pow_of_two(alignment), "alignment must be a power of two");
+    return reinterpret_cast<T*>((reinterpret_cast<uintptr_t>(pointer) + (alignment - 1ul)) & ~(alignment - 1ul));
+  }
+}
+
+template <typename T>
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT T* align_pointer(void* pointer, size_t alignment) noexcept
+{
+  if (alignment == 0)
+  {
+    return reinterpret_cast<T*>(pointer);
+  }
+
+  assert(is_pow_of_two(alignment) && "alignment must be a power of two");
   return reinterpret_cast<T*>((reinterpret_cast<uintptr_t>(pointer) + (alignment - 1ul)) & ~(alignment - 1ul));
 }
 
@@ -144,13 +151,4 @@ QUILL_NODISCARD time_t next_noon_or_midnight_timestamp(time_t timestamp, Timezon
  * @return the formatted string as vector of characters
  */
 QUILL_NODISCARD std::vector<char> safe_strftime(char const* format_string, time_t timestamp, Timezone timezone);
-
-/**
- * Split a string into tokens
- * @param s given string
- * @param delimiter delimiter
- * @return returns a vector of tokens
- */
-QUILL_NODISCARD std::vector<std::string> split(std::string const& s, char delimiter);
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

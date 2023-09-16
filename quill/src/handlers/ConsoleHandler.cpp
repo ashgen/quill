@@ -164,7 +164,7 @@ void ConsoleColours::_set_can_use_colours(FILE* file) noexcept
 #endif
 
 /***/
-ConsoleHandler::ConsoleHandler(filename_t stream, FILE* file, ConsoleColours const& console_colours)
+ConsoleHandler::ConsoleHandler(std::string stream, FILE* file, ConsoleColours const& console_colours)
   : StreamHandler{std::move(stream), file}, _console_colours(console_colours)
 {
   // In this ctor we take a full copy of console_colours and in our instance we modify it
@@ -172,13 +172,14 @@ ConsoleHandler::ConsoleHandler(filename_t stream, FILE* file, ConsoleColours con
 }
 
 /***/
-void ConsoleHandler::write(fmt::memory_buffer const& formatted_log_record,
-                           std::chrono::nanoseconds log_record_timestamp, LogLevel log_message_severity)
+void ConsoleHandler::write(fmt_buffer_t const& formatted_log_message, quill::TransitEvent const& log_event)
 {
+  MacroMetadata const macro_metadata = log_event.metadata();
+
 #if defined(_WIN32)
   if (_console_colours.using_colours())
   {
-    WORD const colour_code = _console_colours.colour_code(log_message_severity);
+    WORD const colour_code = _console_colours.colour_code(macro_metadata.level());
 
     // Set foreground colour and store the original attributes
     WORD const orig_attribs = _set_foreground_colour(colour_code);
@@ -187,8 +188,8 @@ void ConsoleHandler::write(fmt::memory_buffer const& formatted_log_record,
 
     // Write to console
     bool const write_to_console =
-      ::WriteConsoleA(out_handle, formatted_log_record.data(),
-                      static_cast<DWORD>(formatted_log_record.size()), nullptr, nullptr);
+      ::WriteConsoleA(out_handle, formatted_log_message.data(),
+                      static_cast<DWORD>(formatted_log_message.size()), nullptr, nullptr);
 
     if (QUILL_UNLIKELY(!write_to_console))
     {
@@ -213,24 +214,23 @@ void ConsoleHandler::write(fmt::memory_buffer const& formatted_log_record,
   else
   {
     // Write record to file
-    StreamHandler::write(formatted_log_record, log_record_timestamp, log_message_severity);
+    StreamHandler::write(formatted_log_message, log_event);
   }
 #else
   if (_console_colours.can_use_colours())
   {
     // Write colour code
-    std::string const& colour_code = _console_colours.colour_code(log_message_severity);
+    std::string const& colour_code = _console_colours.colour_code(macro_metadata.level());
 
-    detail::file_utilities::fwrite_fully(colour_code.data(), sizeof(char), colour_code.size(), _file);
+    detail::fwrite_fully(colour_code.data(), sizeof(char), colour_code.size(), _file);
   }
 
   // Write record to file
-  StreamHandler::write(formatted_log_record, log_record_timestamp, log_message_severity);
+  StreamHandler::write(formatted_log_message, log_event);
 
   if (_console_colours.can_use_colours())
   {
-    detail::file_utilities::fwrite_fully(ConsoleColours::reset.data(), sizeof(char),
-                                         ConsoleColours::reset.size(), _file);
+    detail::fwrite_fully(ConsoleColours::reset.data(), sizeof(char), ConsoleColours::reset.size(), _file);
   }
 #endif
 }

@@ -5,17 +5,15 @@
 
 #pragma once
 
+#include "quill/Fmt.h"
 #include "quill/detail/misc/Attributes.h"
 #include <cstddef>
-#include <sstream>
 #include <string>
 
 /**
  * Contains useful utilities to assist with logging
  */
-namespace quill
-{
-namespace utility
+namespace quill::utility
 {
 /**
  * Formats the given buffer to hex
@@ -53,9 +51,6 @@ QUILL_NODISCARD std::string to_hex(char const* buffer, size_t size) noexcept;
 template <typename T>
 QUILL_NODISCARD std::string to_string(T const& obj) noexcept
 {
-  std::stringstream ss;
-  ss << obj;
-  return ss.str();
+  return fmtquill::to_string(obj);
 }
-} // namespace utility
-} // namespace quill
+} // namespace quill::utility

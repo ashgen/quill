@@ -5,7 +5,7 @@
 namespace
 {
 template <typename T>
-static std::string _to_hex(T* buffer, size_t size) noexcept
+std::string _to_hex(T* buffer, size_t size) noexcept
 {
   static constexpr char const hex_chars[] = "0123456789ABCDEF";
 
@@ -34,9 +34,7 @@ static std::string _to_hex(T* buffer, size_t size) noexcept
 }
 } // namespace
 
-namespace quill
-{
-namespace utility
+namespace quill::utility
 {
 
 /***/
@@ -54,5 +52,4 @@ std::string to_hex(char* buffer, size_t size) noexcept { return _to_hex(buffer, 
 /***/
 std::string to_hex(char const* buffer, size_t size) noexcept { return _to_hex(buffer, size); }
 
-} // namespace utility
-} // namespace quill
+} // namespace quill::utility

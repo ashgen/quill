@@ -1,13 +1,23 @@
 #include "quill/Quill.h"
 
+#include <chrono>
+#include <thread>
+
 /**
  * Trivial logging example
  */
+
+/**
+ * If you do not wish to pass Logger* objects around you can just create your own macros likes this
+ */
+#define MY_LOG_INFO(fmt, ...) QUILL_LOG_INFO(quill::get_root_logger(), fmt, ##__VA_ARGS__)
 
 int main()
 {
   // Start the logging backend thread
   quill::start();
+
+  MY_LOG_INFO("Hello quill!");
 
   // a) We can use the default logger like this
   {
@@ -31,6 +41,18 @@ int main()
 
     std::array<uint32_t, 4> arr = {1, 2, 3, 4};
     LOG_INFO(logger, "This is a log info example {}", arr);
+
+    // Using a dynamic runtime log level
+    std::array<quill::LogLevel, 4> const runtime_log_levels = {
+      quill::LogLevel::Debug, quill::LogLevel::Info, quill::LogLevel::Warning, quill::LogLevel::Error};
+
+    for (auto const& log_level : runtime_log_levels)
+    {
+      LOG_DYNAMIC(logger, log_level, "Runtime {} {}", "log", "level");
+    }
+
+    // printf format style is also supported
+    LOG_INFO_CFORMAT(logger, "printf style %s %d %f", "example", 5, 2.31);
   }
 
   // b) Or like this
@@ -58,6 +80,13 @@ int main()
   quill::Logger* default_logger = quill::get_logger();
 
   LOG_INFO(default_logger, "Welcome to Quill!");
+  LOG_INFO(default_logger, "Print a vector {} ", std::vector<int>{1, 2, 3, 4, 5});
+
+#if QUILL_FMT_VERSION >= 100000
+  LOG_INFO(default_logger, "or some optionals [{}, {}]", std::optional<std::string>{},
+           std::optional<std::string>{"hello"});
+#endif
+
   LOG_ERROR(default_logger, "An error message with error code {}, error message {}", 123,
             "system_error");
 
@@ -79,4 +108,23 @@ int main()
   quill::Logger* logger_1 = quill::create_logger("my_logger");
   logger_1->set_log_level(quill::LogLevel::None);
   LOG_CRITICAL(logger_1, "This is never logged");
+
+  // Get all created loggers
+  std::unordered_map<std::string, quill::Logger*> created_loggers = quill::get_all_loggers();
+  std::vector<std::string> logger_names;
+  for (auto const& elem : created_loggers)
+  {
+    logger_names.emplace_back(elem.first);
+  }
+
+  LOG_INFO(default_logger, "Existing logger names {}", logger_names);
+
+  for (uint64_t i = 0; i < 10; ++i)
+  {
+    LOG_INFO_LIMIT(std::chrono::milliseconds{100}, default_logger,
+                   "log in a loop with limit 1 message every 100 ms for i {}", i);
+    LOG_DEBUG_LIMIT(std::chrono::seconds{1}, default_logger,
+                    "log in a loop with limit 1 message every 1 second for i {}", i);
+    std::this_thread::sleep_for(std::chrono::microseconds{30});
+  }
 }

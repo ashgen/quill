@@ -1,7 +1,9 @@
 #include "doctest/doctest.h"
 
 #include "quill/Utility.h"
+#include <cstdint>
 #include <cstring>
+#include <cstdint>
 
 TEST_SUITE_BEGIN("Utility");
 

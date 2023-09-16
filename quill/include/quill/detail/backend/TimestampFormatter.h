@@ -16,9 +16,7 @@
 /** forward declarations **/
 struct tm;
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 
 /**
@@ -56,7 +54,7 @@ public:
    * @param time_since_epoch the timestamp from epoch
    * @return formatted string
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT char const* format_timestamp(std::chrono::nanoseconds time_since_epoch);
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::string_view format_timestamp(std::chrono::nanoseconds time_since_epoch);
 
 private:
   /**
@@ -84,5 +82,4 @@ private:
   AdditionalSpecifier _additional_format_specifier{AdditionalSpecifier::None};
 };
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

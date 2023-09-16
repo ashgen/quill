@@ -14,9 +14,9 @@ class FileFilter : public quill::FilterBase
 public:
   FileFilter() : quill::FilterBase("FileFilter"){};
 
-  QUILL_NODISCARD bool filter(char const* thread_id, std::chrono::nanoseconds log_record_timestamp,
-                              quill::LogMacroMetadata const& metadata,
-                              fmt::memory_buffer const& formatted_record) noexcept override
+  QUILL_NODISCARD bool filter(char const* thread_id, std::chrono::nanoseconds log_message_timestamp,
+                              quill::MacroMetadata const& metadata,
+                              quill::fmt_buffer_t const& formatted_record) noexcept override
   {
     // log only messages that are INFO or above in the file
     return metadata.level() < quill::LogLevel::Warning;
@@ -31,9 +31,9 @@ class StdoutFilter : public quill::FilterBase
 public:
   StdoutFilter() : quill::FilterBase("StdoutFilter"){};
 
-  QUILL_NODISCARD bool filter(char const* thread_id, std::chrono::nanoseconds log_record_timestamp,
-                              quill::LogMacroMetadata const& metadata,
-                              fmt::memory_buffer const& formatted_record) noexcept override
+  QUILL_NODISCARD bool filter(char const* thread_id, std::chrono::nanoseconds log_message_timestamp,
+                              quill::MacroMetadata const& metadata,
+                              quill::fmt_buffer_t const& formatted_record) noexcept override
   {
     // log only WARNINGS or higher to stdout
     return metadata.level() >= quill::LogLevel::Warning;
@@ -48,13 +48,19 @@ int main()
   // Get a handler to the file
   // The first time this function is called a file handler is created for this filename.
   // Calling the function with the same filename will return the existing handler
-  quill::Handler* file_handler = quill::file_handler("example_filters.log", "w");
+  std::shared_ptr<quill::Handler> file_handler = quill::file_handler("example_filters.log",
+                                                                     []()
+                                                                     {
+                                                                       quill::FileHandlerConfig cfg;
+                                                                       cfg.set_open_mode('w');
+                                                                       return cfg;
+                                                                     }());
 
   // Create and add the filter to our handler
   file_handler->add_filter(std::make_unique<FileFilter>());
 
   // Also create an stdout handler
-  quill::Handler* stdout_handler = quill::stdout_handler("stdout_1");
+  std::shared_ptr<quill::Handler> stdout_handler = quill::stdout_handler("stdout_1");
 
   // Create and add the filter to our handler
   stdout_handler->add_filter(std::make_unique<StdoutFilter>());

@@ -8,33 +8,21 @@
 #include <locale> // for wstring_convert
 #include <sstream>
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /***/
 std::wstring s2ws(std::string const& str) noexcept
 {
-#if defined(__MINGW32__) || defined(__MINGW64__)
   using convert_t = std::codecvt_utf8_utf16<wchar_t>;
-#else
-  using convert_t = std::codecvt_utf8<wchar_t>;
-#endif
   std::wstring_convert<convert_t, wchar_t> converter;
-
   return converter.from_bytes(str);
 }
 
 /***/
 std::string ws2s(std::wstring const& wstr) noexcept
 {
-#if defined(__MINGW32__) || defined(__MINGW64__)
   using convert_t = std::codecvt_utf8_utf16<wchar_t>;
-#else
-  using convert_t = std::codecvt_utf8<wchar_t>;
-#endif
   std::wstring_convert<convert_t, wchar_t> converter;
-
   return converter.to_bytes(wstr);
 }
 
@@ -105,7 +93,7 @@ time_t next_noon_or_midnight_timestamp(time_t timestamp, Timezone timezone) noex
 /***/
 std::vector<char> safe_strftime(char const* format_string, time_t timestamp, Timezone timezone)
 {
-  if (strlen(format_string) == 0)
+  if (format_string[0] == '\0')
   {
     std::vector<char> res;
     res.push_back('\0');
@@ -137,23 +125,4 @@ std::vector<char> safe_strftime(char const* format_string, time_t timestamp, Tim
 
   return buffer;
 }
-
-/***/
-std::vector<std::string> split(std::string const& s, char delimiter)
-{
-  std::vector<std::string> tokens;
-  std::istringstream token_stream(s);
-
-  std::string token;
-  while (std::getline(token_stream, token, delimiter))
-  {
-    if (!token.empty())
-    {
-      tokens.push_back(token);
-    }
-  }
-  return tokens;
-}
-
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

@@ -7,6 +7,8 @@
 
 #include "quill/detail/misc/Attributes.h" // for QUILL_NODISCARD
 #include <string>                         // for string
+#include <string_view>                    // for string_view
+#include <cstdint>
 
 namespace quill
 {
@@ -24,7 +26,8 @@ enum class LogLevel : uint8_t
   Error,
   Critical,
   Backtrace, /**< This is only used for backtrace logging. Should not be set by the user. */
-  None
+  None,
+  Dynamic /**< This is only used for dynamic logging. Should not be set by the user. */
 };
 
 /**
@@ -32,13 +35,21 @@ enum class LogLevel : uint8_t
  * @param log_level LogLevel
  * @return the corresponding string value
  */
-QUILL_NODISCARD char const* to_string(LogLevel log_level);
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::string_view loglevel_to_string(LogLevel log_level);
+
+/**
+ * Converts a LogLevel enum to string id
+ * @param log_level LogLevel
+ * @return the corresponding string id
+ */
+QUILL_NODISCARD QUILL_ATTRIBUTE_HOT std::string_view loglevel_to_string_id(LogLevel log_level);
 
 /**
  * Converts a string to a LogLevel enum value
  * @param log_level the log level string to convert
+ * "tracel3", "tracel2", "tracel1", "debug", "info", "warning", "error", "backtrace", "none"
  * @return the corresponding LogLevel enum value
  */
-QUILL_NODISCARD LogLevel from_string(std::string log_level);
+QUILL_NODISCARD LogLevel loglevel_from_string(std::string log_level);
 
 } // namespace quill

@@ -95,8 +95,30 @@
   #define QUILL_ATTRIBUTE_COLD
 #endif
 
+// visibility
+#if defined(_WIN32)
+  #if defined(QUILL_DLL_EXPORT)
+    #define QUILL_API __declspec(dllexport)
+  #elif defined(QUILL_BUILD_SHARED)
+    #define QUILL_API __declspec(dllimport)
+  #else
+    #define QUILL_API
+  #endif
+#elif defined(__GNUC__) || defined(__clang__)
+  #define QUILL_API [[gnu::visibility("default")]]
+#else
+  #define QUILL_API
+#endif
+
 /***/
 #define QUILL_NODISCARD_ALWAYS_INLINE_HOT QUILL_NODISCARD QUILL_ALWAYS_INLINE QUILL_ATTRIBUTE_HOT
 
 /***/
 #define QUILL_ALWAYS_INLINE_HOT QUILL_ALWAYS_INLINE QUILL_ATTRIBUTE_HOT
+
+#if defined(__GNUC__) || defined(__clang__)
+  #define QUILL_PRINTF_FORMAT_ATTRIBUTE(string_index, first_to_check)                              \
+    __attribute__((__format__(__printf__, string_index, first_to_check)))
+#else
+  #define QUILL_PRINTF_FORMAT_ATTRIBUTE(string_index, first_to_check)
+#endif

@@ -15,14 +15,34 @@
   #include <unistd.h>
 #endif
 
-namespace quill
-{
-namespace detail
+#define QUILL_INTERNAL_LOG(logger, log_statement_level, fmt, ...)                                  \
+  do                                                                                               \
+  {                                                                                                \
+    static constexpr char const* function_name = __FUNCTION__;                                     \
+    struct                                                                                         \
+    {                                                                                              \
+      constexpr quill::MacroMetadata operator()() const noexcept                                   \
+      {                                                                                            \
+        return quill::MacroMetadata{                                                               \
+          "~",  "QuillSignalHandler.cpp", "QuillSignalHandler.cpp",         function_name,         \
+          fmt,  log_statement_level,      quill::MacroMetadata::Event::Log, false,                 \
+          false};                                                                                  \
+      }                                                                                            \
+    } anonymous_log_message_info;                                                                  \
+                                                                                                   \
+    if (logger->template should_log<log_statement_level>())                                        \
+    {                                                                                              \
+      logger->template log<decltype(anonymous_log_message_info)>(                                  \
+        quill::LogLevel::None, QUILL_FMT_STRING(fmt), ##__VA_ARGS__);                              \
+    }                                                                                              \
+  } while (0)
+
+namespace quill::detail
 {
 namespace
 {
 // std::atomic is also safe here to use instead, as long as it is lock-free
-volatile static std::sig_atomic_t lock{0};
+volatile std::sig_atomic_t lock{0};
 
 #if defined(_WIN32)
 /***/
@@ -80,7 +100,7 @@ BOOL WINAPI on_console_signal(DWORD signal)
 {
   if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT)
   {
-    // This means signal handler is running a caller thread, we can log from the default logger
+    // This means signal handler is running a caller thread, we can log from the root logger
     LOG_INFO(quill::get_logger(), "Interrupted by Ctrl+C:");
 
     quill::flush();
@@ -102,7 +122,7 @@ LONG WINAPI on_exception(EXCEPTION_POINTERS* exception_p)
   }
   else
   {
-    // This means signal handler is running a caller thread, we can log from the default logger
+    // This means signal handler is running a caller thread, we can log from the root logger
     LOG_INFO(quill::get_logger(), "Received exception code: {}",
              get_error_message(exception_p->ExceptionRecord->ExceptionCode));
 
@@ -151,7 +171,7 @@ void on_signal(int32_t signal_number)
   }
   else
   {
-    // This means signal handler is running a caller thread, we can log from the default logger
+    // This means signal handler is running a caller thread, we can log from the root logger
     LOG_INFO(quill::get_logger(), "Received signal: {}", signal_number);
 
     if (signal_number == SIGINT || signal_number == SIGTERM)
@@ -174,7 +194,7 @@ void on_signal(int32_t signal_number)
 }
 
 #else
-volatile static std::sig_atomic_t signal_number_{0};
+volatile std::sig_atomic_t signal_number_{0};
 
 /***/
 void on_alarm(int32_t signal_number)
@@ -230,8 +250,9 @@ void on_signal(int32_t signal_number)
   }
   else
   {
-    // This means signal handler is running a caller thread, we can log from the default logger
-    LOG_INFO(quill::get_logger(), "Received signal: {}", ::strsignal(signal_number));
+    // This means signal handler is running a caller thread, we can log from the root logger
+    QUILL_INTERNAL_LOG(quill::get_logger(), quill::LogLevel::Info, "Received signal: {}",
+                       ::strsignal(signal_number));
 
     if (signal_number == SIGINT || signal_number == SIGTERM)
     {
@@ -241,8 +262,8 @@ void on_signal(int32_t signal_number)
     }
     else
     {
-      LOG_CRITICAL(quill::get_logger(), "Terminated unexpectedly because of signal: {}",
-                   ::strsignal(signal_number));
+      QUILL_INTERNAL_LOG(quill::get_logger(), quill::LogLevel::Critical,
+                         "Terminated unexpectedly because of signal: {}", ::strsignal(signal_number));
 
       quill::flush();
 
@@ -304,5 +325,4 @@ void init_signal_handler(std::initializer_list<int32_t> const& catchable_signals
   }
 }
 #endif
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

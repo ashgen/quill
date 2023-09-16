@@ -5,12 +5,13 @@
 //
 // For the license information refer to format.h.
 
-#ifndef FMT_COLOR_H_
-#define FMT_COLOR_H_
+#ifndef FMTQUILL_COLOR_H_
+#define FMTQUILL_COLOR_H_
 
 #include "format.h"
 
-FMT_BEGIN_NAMESPACE
+FMTQUILL_BEGIN_NAMESPACE
+FMTQUILL_BEGIN_EXPORT
 
 enum class color : uint32_t {
   alice_blue = 0xF0F8FF,               // rgb(240,248,255)
@@ -177,19 +178,23 @@ enum class terminal_color : uint8_t {
 
 enum class emphasis : uint8_t {
   bold = 1,
-  italic = 1 << 1,
-  underline = 1 << 2,
-  strikethrough = 1 << 3
+  faint = 1 << 1,
+  italic = 1 << 2,
+  underline = 1 << 3,
+  blink = 1 << 4,
+  reverse = 1 << 5,
+  conceal = 1 << 6,
+  strikethrough = 1 << 7,
 };
 
 // rgb is a struct for red, green and blue colors.
 // Using the name "rgb" makes some editors show the color in a tooltip.
 struct rgb {
-  FMT_CONSTEXPR rgb() : r(0), g(0), b(0) {}
-  FMT_CONSTEXPR rgb(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
-  FMT_CONSTEXPR rgb(uint32_t hex)
+  FMTQUILL_CONSTEXPR rgb() : r(0), g(0), b(0) {}
+  FMTQUILL_CONSTEXPR rgb(uint8_t r_, uint8_t g_, uint8_t b_) : r(r_), g(g_), b(b_) {}
+  FMTQUILL_CONSTEXPR rgb(uint32_t hex)
       : r((hex >> 16) & 0xFF), g((hex >> 8) & 0xFF), b(hex & 0xFF) {}
-  FMT_CONSTEXPR rgb(color hex)
+  FMTQUILL_CONSTEXPR rgb(color hex)
       : r((uint32_t(hex) >> 16) & 0xFF),
         g((uint32_t(hex) >> 8) & 0xFF),
         b(uint32_t(hex) & 0xFF) {}
@@ -198,21 +203,20 @@ struct rgb {
   uint8_t b;
 };
 
-namespace detail {
+FMTQUILL_BEGIN_DETAIL_NAMESPACE
 
 // color is a struct of either a rgb color or a terminal color.
 struct color_type {
-  FMT_CONSTEXPR color_type() FMT_NOEXCEPT : is_rgb(), value{} {}
-  FMT_CONSTEXPR color_type(color rgb_color) FMT_NOEXCEPT : is_rgb(true),
-                                                           value{} {
+  FMTQUILL_CONSTEXPR color_type() noexcept : is_rgb(), value{} {}
+  FMTQUILL_CONSTEXPR color_type(color rgb_color) noexcept : is_rgb(true), value{} {
     value.rgb_color = static_cast<uint32_t>(rgb_color);
   }
-  FMT_CONSTEXPR color_type(rgb rgb_color) FMT_NOEXCEPT : is_rgb(true), value{} {
+  FMTQUILL_CONSTEXPR color_type(rgb rgb_color) noexcept : is_rgb(true), value{} {
     value.rgb_color = (static_cast<uint32_t>(rgb_color.r) << 16) |
                       (static_cast<uint32_t>(rgb_color.g) << 8) | rgb_color.b;
   }
-  FMT_CONSTEXPR color_type(terminal_color term_color) FMT_NOEXCEPT : is_rgb(),
-                                                                     value{} {
+  FMTQUILL_CONSTEXPR color_type(terminal_color term_color) noexcept
+      : is_rgb(), value{} {
     value.term_color = static_cast<uint8_t>(term_color);
   }
   bool is_rgb;
@@ -221,23 +225,22 @@ struct color_type {
     uint32_t rgb_color;
   } value;
 };
-}  // namespace detail
 
-// Experimental text formatting support.
+FMTQUILL_END_DETAIL_NAMESPACE
+
+/** A text style consisting of foreground and background colors and emphasis. */
 class text_style {
  public:
-  FMT_CONSTEXPR text_style(emphasis em = emphasis()) FMT_NOEXCEPT
-      : set_foreground_color(),
-        set_background_color(),
-        ems(em) {}
+  FMTQUILL_CONSTEXPR text_style(emphasis em = emphasis()) noexcept
+      : set_foreground_color(), set_background_color(), ems(em) {}
 
-  FMT_CONSTEXPR text_style& operator|=(const text_style& rhs) {
+  FMTQUILL_CONSTEXPR text_style& operator|=(const text_style& rhs) {
     if (!set_foreground_color) {
       set_foreground_color = rhs.set_foreground_color;
       foreground_color = rhs.foreground_color;
     } else if (rhs.set_foreground_color) {
       if (!foreground_color.is_rgb || !rhs.foreground_color.is_rgb)
-        FMT_THROW(format_error("can't OR a terminal color"));
+        FMTQUILL_THROW(format_error("can't OR a terminal color"));
       foreground_color.value.rgb_color |= rhs.foreground_color.value.rgb_color;
     }
 
@@ -246,7 +249,7 @@ class text_style {
       background_color = rhs.background_color;
     } else if (rhs.set_background_color) {
       if (!background_color.is_rgb || !rhs.background_color.is_rgb)
-        FMT_THROW(format_error("can't OR a terminal color"));
+        FMTQUILL_THROW(format_error("can't OR a terminal color"));
       background_color.value.rgb_color |= rhs.background_color.value.rgb_color;
     }
 
@@ -255,68 +258,37 @@ class text_style {
     return *this;
   }
 
-  friend FMT_CONSTEXPR text_style operator|(text_style lhs,
+  friend FMTQUILL_CONSTEXPR text_style operator|(text_style lhs,
                                             const text_style& rhs) {
     return lhs |= rhs;
   }
 
-  FMT_CONSTEXPR text_style& operator&=(const text_style& rhs) {
-    if (!set_foreground_color) {
-      set_foreground_color = rhs.set_foreground_color;
-      foreground_color = rhs.foreground_color;
-    } else if (rhs.set_foreground_color) {
-      if (!foreground_color.is_rgb || !rhs.foreground_color.is_rgb)
-        FMT_THROW(format_error("can't AND a terminal color"));
-      foreground_color.value.rgb_color &= rhs.foreground_color.value.rgb_color;
-    }
-
-    if (!set_background_color) {
-      set_background_color = rhs.set_background_color;
-      background_color = rhs.background_color;
-    } else if (rhs.set_background_color) {
-      if (!background_color.is_rgb || !rhs.background_color.is_rgb)
-        FMT_THROW(format_error("can't AND a terminal color"));
-      background_color.value.rgb_color &= rhs.background_color.value.rgb_color;
-    }
-
-    ems = static_cast<emphasis>(static_cast<uint8_t>(ems) &
-                                static_cast<uint8_t>(rhs.ems));
-    return *this;
-  }
-
-  friend FMT_CONSTEXPR text_style operator&(text_style lhs,
-                                            const text_style& rhs) {
-    return lhs &= rhs;
-  }
-
-  FMT_CONSTEXPR bool has_foreground() const FMT_NOEXCEPT {
+  FMTQUILL_CONSTEXPR bool has_foreground() const noexcept {
     return set_foreground_color;
   }
-  FMT_CONSTEXPR bool has_background() const FMT_NOEXCEPT {
+  FMTQUILL_CONSTEXPR bool has_background() const noexcept {
     return set_background_color;
   }
-  FMT_CONSTEXPR bool has_emphasis() const FMT_NOEXCEPT {
+  FMTQUILL_CONSTEXPR bool has_emphasis() const noexcept {
     return static_cast<uint8_t>(ems) != 0;
   }
-  FMT_CONSTEXPR detail::color_type get_foreground() const FMT_NOEXCEPT {
-    FMT_ASSERT(has_foreground(), "no foreground specified for this style");
+  FMTQUILL_CONSTEXPR detail::color_type get_foreground() const noexcept {
+    FMTQUILL_ASSERT(has_foreground(), "no foreground specified for this style");
     return foreground_color;
   }
-  FMT_CONSTEXPR detail::color_type get_background() const FMT_NOEXCEPT {
-    FMT_ASSERT(has_background(), "no background specified for this style");
+  FMTQUILL_CONSTEXPR detail::color_type get_background() const noexcept {
+    FMTQUILL_ASSERT(has_background(), "no background specified for this style");
     return background_color;
   }
-  FMT_CONSTEXPR emphasis get_emphasis() const FMT_NOEXCEPT {
-    FMT_ASSERT(has_emphasis(), "no emphasis specified for this style");
+  FMTQUILL_CONSTEXPR emphasis get_emphasis() const noexcept {
+    FMTQUILL_ASSERT(has_emphasis(), "no emphasis specified for this style");
     return ems;
   }
 
  private:
-  FMT_CONSTEXPR text_style(bool is_foreground,
-                           detail::color_type text_color) FMT_NOEXCEPT
-      : set_foreground_color(),
-        set_background_color(),
-        ems() {
+  FMTQUILL_CONSTEXPR text_style(bool is_foreground,
+                           detail::color_type text_color) noexcept
+      : set_foreground_color(), set_background_color(), ems() {
     if (is_foreground) {
       foreground_color = text_color;
       set_foreground_color = true;
@@ -326,10 +298,9 @@ class text_style {
     }
   }
 
-  friend FMT_CONSTEXPR_DECL text_style fg(detail::color_type foreground)
-      FMT_NOEXCEPT;
-  friend FMT_CONSTEXPR_DECL text_style bg(detail::color_type background)
-      FMT_NOEXCEPT;
+  friend FMTQUILL_CONSTEXPR text_style fg(detail::color_type foreground) noexcept;
+
+  friend FMTQUILL_CONSTEXPR text_style bg(detail::color_type background) noexcept;
 
   detail::color_type foreground_color;
   detail::color_type background_color;
@@ -338,27 +309,29 @@ class text_style {
   emphasis ems;
 };
 
-FMT_CONSTEXPR text_style fg(detail::color_type foreground) FMT_NOEXCEPT {
-  return text_style(/*is_foreground=*/true, foreground);
+/** Creates a text style from the foreground (text) color. */
+FMTQUILL_CONSTEXPR inline text_style fg(detail::color_type foreground) noexcept {
+  return text_style(true, foreground);
 }
 
-FMT_CONSTEXPR text_style bg(detail::color_type background) FMT_NOEXCEPT {
-  return text_style(/*is_foreground=*/false, background);
+/** Creates a text style from the background color. */
+FMTQUILL_CONSTEXPR inline text_style bg(detail::color_type background) noexcept {
+  return text_style(false, background);
 }
 
-FMT_CONSTEXPR text_style operator|(emphasis lhs, emphasis rhs) FMT_NOEXCEPT {
+FMTQUILL_CONSTEXPR inline text_style operator|(emphasis lhs, emphasis rhs) noexcept {
   return text_style(lhs) | rhs;
 }
 
-namespace detail {
+FMTQUILL_BEGIN_DETAIL_NAMESPACE
 
 template <typename Char> struct ansi_color_escape {
-  FMT_CONSTEXPR ansi_color_escape(detail::color_type text_color,
-                                  const char* esc) FMT_NOEXCEPT {
+  FMTQUILL_CONSTEXPR ansi_color_escape(detail::color_type text_color,
+                                  const char* esc) noexcept {
     // If we have a terminal color, we need to output another escape code
     // sequence.
     if (!text_color.is_rgb) {
-      bool is_background = esc == detail::data::background_color;
+      bool is_background = esc == string_view("\x1b[48;2;");
       uint32_t value = text_color.value.term_color;
       // Background ASCII codes are the same as the foreground ones but with
       // 10 more.
@@ -389,17 +362,19 @@ template <typename Char> struct ansi_color_escape {
     to_esc(color.b, buffer + 15, 'm');
     buffer[19] = static_cast<Char>(0);
   }
-  FMT_CONSTEXPR ansi_color_escape(emphasis em) FMT_NOEXCEPT {
-    uint8_t em_codes[4] = {};
-    uint8_t em_bits = static_cast<uint8_t>(em);
-    if (em_bits & static_cast<uint8_t>(emphasis::bold)) em_codes[0] = 1;
-    if (em_bits & static_cast<uint8_t>(emphasis::italic)) em_codes[1] = 3;
-    if (em_bits & static_cast<uint8_t>(emphasis::underline)) em_codes[2] = 4;
-    if (em_bits & static_cast<uint8_t>(emphasis::strikethrough))
-      em_codes[3] = 9;
+  FMTQUILL_CONSTEXPR ansi_color_escape(emphasis em) noexcept {
+    uint8_t em_codes[num_emphases] = {};
+    if (has_emphasis(em, emphasis::bold)) em_codes[0] = 1;
+    if (has_emphasis(em, emphasis::faint)) em_codes[1] = 2;
+    if (has_emphasis(em, emphasis::italic)) em_codes[2] = 3;
+    if (has_emphasis(em, emphasis::underline)) em_codes[3] = 4;
+    if (has_emphasis(em, emphasis::blink)) em_codes[4] = 5;
+    if (has_emphasis(em, emphasis::reverse)) em_codes[5] = 7;
+    if (has_emphasis(em, emphasis::conceal)) em_codes[6] = 8;
+    if (has_emphasis(em, emphasis::strikethrough)) em_codes[7] = 9;
 
     size_t index = 0;
-    for (int i = 0; i < 4; ++i) {
+    for (size_t i = 0; i < num_emphases; ++i) {
       if (!em_codes[i]) continue;
       buffer[index++] = static_cast<Char>('\x1b');
       buffer[index++] = static_cast<Char>('[');
@@ -408,66 +383,55 @@ template <typename Char> struct ansi_color_escape {
     }
     buffer[index++] = static_cast<Char>(0);
   }
-  FMT_CONSTEXPR operator const Char*() const FMT_NOEXCEPT { return buffer; }
+  FMTQUILL_CONSTEXPR operator const Char*() const noexcept { return buffer; }
 
-  FMT_CONSTEXPR const Char* begin() const FMT_NOEXCEPT { return buffer; }
-  FMT_CONSTEXPR const Char* end() const FMT_NOEXCEPT {
+  FMTQUILL_CONSTEXPR const Char* begin() const noexcept { return buffer; }
+  FMTQUILL_CONSTEXPR_CHAR_TRAITS const Char* end() const noexcept {
     return buffer + std::char_traits<Char>::length(buffer);
   }
 
  private:
-  Char buffer[7u + 3u * 4u + 1u];
+  static constexpr size_t num_emphases = 8;
+  Char buffer[7u + 3u * num_emphases + 1u];
 
-  static FMT_CONSTEXPR void to_esc(uint8_t c, Char* out,
-                                   char delimiter) FMT_NOEXCEPT {
+  static FMTQUILL_CONSTEXPR void to_esc(uint8_t c, Char* out,
+                                   char delimiter) noexcept {
     out[0] = static_cast<Char>('0' + c / 100);
     out[1] = static_cast<Char>('0' + c / 10 % 10);
     out[2] = static_cast<Char>('0' + c % 10);
     out[3] = static_cast<Char>(delimiter);
   }
+  static FMTQUILL_CONSTEXPR bool has_emphasis(emphasis em, emphasis mask) noexcept {
+    return static_cast<uint8_t>(em) & static_cast<uint8_t>(mask);
+  }
 };
 
 template <typename Char>
-FMT_CONSTEXPR ansi_color_escape<Char> make_foreground_color(
-    detail::color_type foreground) FMT_NOEXCEPT {
-  return ansi_color_escape<Char>(foreground, detail::data::foreground_color);
+FMTQUILL_CONSTEXPR ansi_color_escape<Char> make_foreground_color(
+    detail::color_type foreground) noexcept {
+  return ansi_color_escape<Char>(foreground, "\x1b[38;2;");
 }
 
 template <typename Char>
-FMT_CONSTEXPR ansi_color_escape<Char> make_background_color(
-    detail::color_type background) FMT_NOEXCEPT {
-  return ansi_color_escape<Char>(background, detail::data::background_color);
+FMTQUILL_CONSTEXPR ansi_color_escape<Char> make_background_color(
+    detail::color_type background) noexcept {
+  return ansi_color_escape<Char>(background, "\x1b[48;2;");
 }
 
 template <typename Char>
-FMT_CONSTEXPR ansi_color_escape<Char> make_emphasis(emphasis em) FMT_NOEXCEPT {
+FMTQUILL_CONSTEXPR ansi_color_escape<Char> make_emphasis(emphasis em) noexcept {
   return ansi_color_escape<Char>(em);
 }
 
-template <typename Char>
-inline void fputs(const Char* chars, FILE* stream) FMT_NOEXCEPT {
-  std::fputs(chars, stream);
+template <typename Char> inline void reset_color(buffer<Char>& buffer) {
+  auto reset_color = string_view("\x1b[0m");
+  buffer.append(reset_color.begin(), reset_color.end());
 }
 
-template <>
-inline void fputs<wchar_t>(const wchar_t* chars, FILE* stream) FMT_NOEXCEPT {
-  std::fputws(chars, stream);
-}
-
-template <typename Char> inline void reset_color(FILE* stream) FMT_NOEXCEPT {
-  fputs(detail::data::reset_color, stream);
-}
-
-template <> inline void reset_color<wchar_t>(FILE* stream) FMT_NOEXCEPT {
-  fputs(detail::data::wreset_color, stream);
-}
-
-template <typename Char>
-inline void reset_color(buffer<Char>& buffer) FMT_NOEXCEPT {
-  const char* begin = data::reset_color;
-  const char* end = begin + sizeof(data::reset_color) - 1;
-  buffer.append(begin, end);
-}
+template <typename T> struct styled_arg {
+  const T& value;
+  text_style style;
+};
 
 template <typename Char>
 void vformat_to(buffer<Char>& buf, const text_style& ts,
@@ -489,18 +453,25 @@ void vformat_to(buffer<Char>& buf, const text_style& ts,
     auto background = detail::make_background_color<Char>(ts.get_background());
     buf.append(background.begin(), background.end());
   }
-  detail::vformat_to(buf, format_str, args);
+  detail::vformat_to(buf, format_str, args, {});
   if (has_style) detail::reset_color<Char>(buf);
 }
-}  // namespace detail
 
-template <typename S, typename Char = char_t<S>>
-void vprint(std::FILE* f, const text_style& ts, const S& format,
-            basic_format_args<buffer_context<type_identity_t<Char>>> args) {
-  basic_memory_buffer<Char> buf;
-  detail::vformat_to(buf, ts, to_string_view(format), args);
-  buf.push_back(Char(0));
-  detail::fputs(buf.data(), f);
+FMTQUILL_END_DETAIL_NAMESPACE
+
+inline void vprint(std::FILE* f, const text_style& ts, string_view fmt,
+                   format_args args) {
+  // Legacy wide streams are not supported.
+  auto buf = memory_buffer();
+  detail::vformat_to(buf, ts, fmt, args);
+  if (detail::is_utf8()) {
+    detail::print(f, string_view(buf.begin(), buf.size()));
+    return;
+  }
+  buf.push_back('\0');
+  int result = std::fputs(buf.data(), f);
+  if (result < 0)
+    FMTQUILL_THROW(system_error(errno, FMTQUILL_STRING("cannot write to file")));
 }
 
 /**
@@ -510,27 +481,31 @@ void vprint(std::FILE* f, const text_style& ts, const S& format,
 
   **Example**::
 
-    fmt::print(fmt::emphasis::bold | fg(fmt::color::red),
+    fmtquill::print(fmtquill::emphasis::bold | fg(fmtquill::color::red),
                "Elapsed time: {0:.2f} seconds", 1.23);
   \endrst
  */
 template <typename S, typename... Args,
-          FMT_ENABLE_IF(detail::is_string<S>::value)>
+          FMTQUILL_ENABLE_IF(detail::is_string<S>::value)>
 void print(std::FILE* f, const text_style& ts, const S& format_str,
            const Args&... args) {
   vprint(f, ts, format_str,
-         fmt::make_args_checked<Args...>(format_str, args...));
+         fmtquill::make_format_args<buffer_context<char_t<S>>>(args...));
 }
 
 /**
+  \rst
   Formats a string and prints it to stdout using ANSI escape sequences to
   specify text formatting.
-  Example:
-    fmt::print(fmt::emphasis::bold | fg(fmt::color::red),
+
+  **Example**::
+
+    fmtquill::print(fmtquill::emphasis::bold | fg(fmtquill::color::red),
                "Elapsed time: {0:.2f} seconds", 1.23);
+  \endrst
  */
 template <typename S, typename... Args,
-          FMT_ENABLE_IF(detail::is_string<S>::value)>
+          FMTQUILL_ENABLE_IF(detail::is_string<S>::value)>
 void print(const text_style& ts, const S& format_str, const Args&... args) {
   return print(stdout, ts, format_str, args...);
 }
@@ -540,8 +515,8 @@ inline std::basic_string<Char> vformat(
     const text_style& ts, const S& format_str,
     basic_format_args<buffer_context<type_identity_t<Char>>> args) {
   basic_memory_buffer<Char> buf;
-  detail::vformat_to(buf, ts, to_string_view(format_str), args);
-  return fmt::to_string(buf);
+  detail::vformat_to(buf, ts, detail::to_string_view(format_str), args);
+  return fmtquill::to_string(buf);
 }
 
 /**
@@ -552,28 +527,28 @@ inline std::basic_string<Char> vformat(
   **Example**::
 
     #include <fmt/color.h>
-    std::string message = fmt::format(fmt::emphasis::bold | fg(fmt::color::red),
+    std::string message = fmtquill::format(fmtquill::emphasis::bold | fg(fmtquill::color::red),
                                       "The answer is {}", 42);
   \endrst
 */
 template <typename S, typename... Args, typename Char = char_t<S>>
 inline std::basic_string<Char> format(const text_style& ts, const S& format_str,
                                       const Args&... args) {
-  return vformat(ts, to_string_view(format_str),
-                 fmt::make_args_checked<Args...>(format_str, args...));
+  return fmtquill::vformat(ts, detail::to_string_view(format_str),
+                      fmtquill::make_format_args<buffer_context<Char>>(args...));
 }
 
 /**
   Formats a string with the given text_style and writes the output to ``out``.
  */
 template <typename OutputIt, typename Char,
-          FMT_ENABLE_IF(detail::is_output_iterator<OutputIt, Char>::value)>
+          FMTQUILL_ENABLE_IF(detail::is_output_iterator<OutputIt, Char>::value)>
 OutputIt vformat_to(
     OutputIt out, const text_style& ts, basic_string_view<Char> format_str,
     basic_format_args<buffer_context<type_identity_t<Char>>> args) {
-  decltype(detail::get_buffer<Char>(out)) buf(detail::get_buffer_init(out));
+  auto&& buf = detail::get_buffer<Char>(out);
   detail::vformat_to(buf, ts, format_str, args);
-  return detail::get_iterator(buf);
+  return detail::get_iterator(buf, out);
 }
 
 /**
@@ -584,8 +559,8 @@ OutputIt vformat_to(
   **Example**::
 
     std::vector<char> out;
-    fmt::format_to(std::back_inserter(out),
-                   fmt::emphasis::bold | fg(fmt::color::red), "{}", 42);
+    fmtquill::format_to(std::back_inserter(out),
+                   fmtquill::emphasis::bold | fg(fmtquill::color::red), "{}", 42);
   \endrst
 */
 template <typename OutputIt, typename S, typename... Args,
@@ -594,10 +569,65 @@ template <typename OutputIt, typename S, typename... Args,
 inline auto format_to(OutputIt out, const text_style& ts, const S& format_str,
                       Args&&... args) ->
     typename std::enable_if<enable, OutputIt>::type {
-  return vformat_to(out, ts, to_string_view(format_str),
-                    fmt::make_args_checked<Args...>(format_str, args...));
+  return vformat_to(out, ts, detail::to_string_view(format_str),
+                    fmtquill::make_format_args<buffer_context<char_t<S>>>(args...));
 }
 
-FMT_END_NAMESPACE
+template <typename T, typename Char>
+struct formatter<detail::styled_arg<T>, Char> : formatter<T, Char> {
+  template <typename FormatContext>
+  auto format(const detail::styled_arg<T>& arg, FormatContext& ctx) const
+      -> decltype(ctx.out()) {
+    const auto& ts = arg.style;
+    const auto& value = arg.value;
+    auto out = ctx.out();
 
-#endif  // FMT_COLOR_H_
+    bool has_style = false;
+    if (ts.has_emphasis()) {
+      has_style = true;
+      auto emphasis = detail::make_emphasis<Char>(ts.get_emphasis());
+      out = std::copy(emphasis.begin(), emphasis.end(), out);
+    }
+    if (ts.has_foreground()) {
+      has_style = true;
+      auto foreground =
+          detail::make_foreground_color<Char>(ts.get_foreground());
+      out = std::copy(foreground.begin(), foreground.end(), out);
+    }
+    if (ts.has_background()) {
+      has_style = true;
+      auto background =
+          detail::make_background_color<Char>(ts.get_background());
+      out = std::copy(background.begin(), background.end(), out);
+    }
+    out = formatter<T, Char>::format(value, ctx);
+    if (has_style) {
+      auto reset_color = string_view("\x1b[0m");
+      out = std::copy(reset_color.begin(), reset_color.end(), out);
+    }
+    return out;
+  }
+};
+
+/**
+  \rst
+  Returns an argument that will be formatted using ANSI escape sequences,
+  to be used in a formatting function.
+
+  **Example**::
+
+    fmtquill::print("Elapsed time: {0:.2f} seconds",
+               fmtquill::styled(1.23, fmtquill::fg(fmtquill::color::green) |
+                                 fmtquill::bg(fmtquill::color::blue)));
+  \endrst
+ */
+template <typename T>
+FMTQUILL_CONSTEXPR auto styled(const T& value, text_style ts)
+    -> detail::styled_arg<remove_cvref_t<T>> {
+  return detail::styled_arg<remove_cvref_t<T>>{value, ts};
+}
+
+FMTQUILL_END_EXPORT
+FMTQUILL_END_NAMESPACE
+
+#endif  // FMTQUILL_COLOR_H_

@@ -3,8 +3,6 @@
  * this file.
  */
 
-#define QUILL_CHRONO_CLOCK
-
 #include "hot_path_bench.h"
 #include "quill/Quill.h"
 
@@ -17,8 +15,12 @@ void quill_benchmark(std::vector<int32_t> const& thread_count_array,
   /** - MAIN THREAD START - Logger setup if any **/
 
   /** - Setup Quill **/
-  quill::config::set_backend_thread_sleep_duration(std::chrono::nanoseconds{0});
-  quill::config::set_backend_thread_cpu_affinity(0);
+  quill::Config cfg;
+  cfg.backend_thread_yield = false;
+  cfg.backend_thread_cpu_affinity = 0;
+  cfg.default_timestamp_clock_type = quill::TimestampClockType::System;
+
+  quill::configure(cfg);
 
   // Start the logging backend thread
   quill::start();
@@ -27,9 +29,16 @@ void quill_benchmark(std::vector<int32_t> const& thread_count_array,
   std::this_thread::sleep_for(std::chrono::seconds(1));
 
   // Create a file handler to write to a file
-  quill::Handler* file_handler = quill::file_handler("quill_hot_path_system_clock.log", "w");
+  std::shared_ptr<quill::Handler> file_handler =
+    quill::file_handler("quill_hot_path_system_clock.log",
+                        []()
+                        {
+                          quill::FileHandlerConfig cfg;
+                          cfg.set_open_mode('w');
+                          return cfg;
+                        }());
 
-  quill::Logger* logger = quill::create_logger("bench_logger", file_handler);
+  quill::Logger* logger = quill::create_logger("bench_logger", std::move(file_handler));
 
   /** LOGGING THREAD FUNCTIONS - on_start, on_exit, log_func must be implemented **/
   /** those run on a several thread(s). It can be one or multiple threads based on THREAD_LIST_COUNT config */
@@ -63,7 +72,4 @@ void quill_benchmark(std::vector<int32_t> const& thread_count_array,
 }
 
 /***/
-int main(int argc, char* argv[])
-{
-  quill_benchmark(THREAD_LIST_COUNT, ITERATIONS, MESSAGES_PER_ITERATION);
-}
+int main(int, char**) { quill_benchmark(THREAD_LIST_COUNT, ITERATIONS, MESSAGES_PER_ITERATION); }

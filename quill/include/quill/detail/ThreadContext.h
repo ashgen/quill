@@ -5,17 +5,19 @@
 
 #pragma once
 
-#include "quill/detail/events/BaseEvent.h"
+#include "quill/TweakMe.h"
+
+#include "quill/Fmt.h"
+#include "quill/detail/backend/TransitEventBuffer.h"
 #include "quill/detail/misc/Common.h"
 #include "quill/detail/misc/Os.h"
-#include "quill/detail/spsc_queue/UnboundedSPSCEventQueue.h"
+#include "quill/detail/spsc_queue/UnboundedQueue.h"
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
+#include <variant>
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 /**
  * Each thread has it's own instance of a ThreadContext class
@@ -29,17 +31,23 @@ namespace detail
 class ThreadContext
 {
 public:
-  using RawSPSCQueueT = BoundedSPSCRawQueue;
-#if defined(QUILL_USE_BOUNDED_QUEUE)
-  using EventSPSCQueueT = BoundedSPSCEventQueue<BaseEvent>;
-#else
-  using EventSPSCQueueT = UnboundedSPSCEventQueue<BaseEvent>;
-#endif
-
   /**
    * Constructor
    */
-  explicit ThreadContext() = default;
+  explicit ThreadContext(QueueType queue_type, uint32_t default_queue_capacity,
+                         uint32_t initial_transit_event_buffer_capacity, bool huge_pages)
+    : _transit_event_buffer(initial_transit_event_buffer_capacity)
+  {
+    if ((queue_type == QueueType::UnboundedBlocking) ||
+        (queue_type == QueueType::UnboundedNoMaxLimit) || (queue_type == QueueType::UnboundedDropping))
+    {
+      _spsc_queue.emplace<UnboundedQueue>(default_queue_capacity, huge_pages);
+    }
+    else
+    {
+      _spsc_queue.emplace<BoundedQueue>(default_queue_capacity, huge_pages);
+    }
+  }
 
   /**
    * Deleted
@@ -54,50 +62,72 @@ public:
    * @param i size of object
    * @return a pointer to the allocated object
    */
-  void* operator new(size_t i) { return aligned_alloc(CACHELINE_SIZE, i); }
+  void* operator new(size_t i) { return alloc_aligned(i, CACHE_LINE_ALIGNED); }
 
   /**
    * Operator delete
    * @see operator new
    * @param p pointer to object
    */
-  void operator delete(void* p) { aligned_free(p); }
+  void operator delete(void* p) { free_aligned(p); }
+
+  /**
+   * @return A reference to the backend's thread transit event buffer
+   */
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT detail::UnboundedTransitEventBuffer& transit_event_buffer() noexcept
+  {
+    return _transit_event_buffer;
+  }
 
   /**
    * @return A reference to the generic single-producer-single-consumer queue
    */
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT EventSPSCQueueT& event_spsc_queue() noexcept
+  template <QueueType queue_type>
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedNoMaxLimit) ||
+                                                         (queue_type == QueueType::UnboundedDropping),
+                                                       UnboundedQueue, BoundedQueue>&
+  spsc_queue() noexcept
   {
-    return _event_spsc_queue;
+    if constexpr ((queue_type == QueueType::UnboundedBlocking) ||
+                  (queue_type == QueueType::UnboundedNoMaxLimit) || (queue_type == QueueType::UnboundedDropping))
+    {
+      return std::get<UnboundedQueue>(_spsc_queue);
+    }
+    else
+    {
+      return std::get<BoundedQueue>(_spsc_queue);
+    }
   }
 
   /**
    * @return A reference to the generic single-producer-single-consumer queue const overload
    */
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT EventSPSCQueueT const& event_spsc_queue() const noexcept
+  template <QueueType queue_type>
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::conditional_t<(queue_type == QueueType::UnboundedBlocking) || (queue_type == QueueType::UnboundedNoMaxLimit) ||
+                                                         (queue_type == QueueType::UnboundedDropping),
+                                                       UnboundedQueue, BoundedQueue> const&
+  spsc_queue() const noexcept
   {
-    return _event_spsc_queue;
+    if constexpr ((queue_type == QueueType::UnboundedBlocking) ||
+                  (queue_type == QueueType::UnboundedNoMaxLimit) || (queue_type == QueueType::UnboundedDropping))
+    {
+      return std::get<UnboundedQueue>(_spsc_queue);
+    }
+    else
+    {
+      return std::get<BoundedQueue>(_spsc_queue);
+    }
   }
 
-#if defined(QUILL_DUAL_QUEUE_MODE)
-  /**
-   * In this queue we store only log statements that contain 100% of built-in types
-   * @return A reference to the fast single-producer-single-consumer queue
-   */
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT RawSPSCQueueT& raw_spsc_queue() noexcept
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::variant<std::monostate, UnboundedQueue, BoundedQueue> const& spsc_queue_variant() const noexcept
   {
-    return _raw_spsc_queue;
+    return _spsc_queue;
   }
 
-  /**
-   * In this queue we store only log statements that contain 100% of built-in types
-   * @return A reference to the fast single-producer-single-consumer queue const overload
-   */
-  QUILL_NODISCARD_ALWAYS_INLINE_HOT RawSPSCQueueT const& raw_spsc_queue() const noexcept
+  QUILL_NODISCARD_ALWAYS_INLINE_HOT std::variant<std::monostate, UnboundedQueue, BoundedQueue>& spsc_queue_variant() noexcept
   {
-    return _raw_spsc_queue;
+    return _spsc_queue;
   }
-#endif
 
   /**
    * @return The cached thread id value
@@ -121,44 +151,34 @@ public:
    */
   QUILL_NODISCARD bool is_valid() const noexcept { return _valid.load(std::memory_order_relaxed); }
 
-#if defined(QUILL_USE_BOUNDED_QUEUE)
   /**
    * Increments the dropped message counter
    */
-  void increment_dropped_message_counter() noexcept
+  void increment_message_failure_counter() noexcept
   {
-    _dropped_message_counter.fetch_add(1, std::memory_order_relaxed);
+    _message_failure_counter.fetch_add(1, std::memory_order_relaxed);
   }
 
   /**
-   * If the message counter is greater than zero, this will return the value and reset the counter
-   * to 0. Called by the backend worker thread
-   * @return current value of the dropped message counter
+   * If the message failure counter is greater than zero, this will return the value and reset the
+   * counter Called by the backend worker thread
+   * @return current value of the message message counter
    */
-  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t get_and_reset_message_counter() noexcept
+  QUILL_NODISCARD QUILL_ATTRIBUTE_HOT size_t get_and_reset_message_failure_counter() noexcept
   {
-    if (QUILL_LIKELY(_dropped_message_counter.load(std::memory_order_relaxed) == 0))
+    if (QUILL_LIKELY(_message_failure_counter.load(std::memory_order_relaxed) == 0))
     {
       return 0;
     }
-    return _dropped_message_counter.exchange(0, std::memory_order_relaxed);
+    return _message_failure_counter.exchange(0, std::memory_order_relaxed);
   }
-#endif
 
 private:
-#if defined(QUILL_DUAL_QUEUE_MODE)
-  RawSPSCQueueT _raw_spsc_queue; /** queue for this thread, only log statements with POD types are here */
-#endif
-
-  EventSPSCQueueT _event_spsc_queue; /** queue for this thread, events are pushed here */
-  std::string _thread_id{fmt::format_int(get_thread_id()).str()}; /**< cache this thread pid */
-  std::string _thread_name{get_thread_name()};                    /**< cache this thread name */
+  std::variant<std::monostate, UnboundedQueue, BoundedQueue> _spsc_queue; /** queue for this thread, events are pushed here */
+  UnboundedTransitEventBuffer _transit_event_buffer;                    /** backend thread buffer */
+  std::string _thread_id = fmtquill::format_int(get_thread_id()).str(); /**< cache this thread pid */
+  std::string _thread_name = get_thread_name(); /**< cache this thread name */
   std::atomic<bool> _valid{true}; /**< is this context valid, set by the caller, read by the backend worker thread */
-
-#if defined(QUILL_USE_BOUNDED_QUEUE)
-  alignas(CACHELINE_SIZE) std::atomic<size_t> _dropped_message_counter{0};
-  char _pad0[detail::CACHELINE_SIZE - sizeof(std::atomic<size_t>)] = "\0";
-#endif
+  alignas(CACHE_LINE_ALIGNED) std::atomic<size_t> _message_failure_counter{0};
 };
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

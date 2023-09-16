@@ -6,25 +6,33 @@
 #pragma once
 
 #include "quill/detail/misc/Attributes.h" // for QUILL_ATTRIBUTE_COLD, QUIL...
-#include "quill/detail/misc/Common.h"     // for filename_t
+#include "quill/detail/misc/Common.h"     // for fs::path
 #include <cstdint>                        // for uint32_t, uint16_t
 #include <cstdio>                         // for FILE
 #include <ctime>                          // for size_t, time_t
-#include <string>                         // for string
-#include <utility>                        // for pair
-
-#if defined(_WIN32)
-#include "quill/Fmt.h"
-#endif
+#include <string>  // for string
+#include <utility> // for pair
 
 /** forward declarations **/
 struct tm;
 
-namespace quill
+namespace quill::detail
 {
-namespace detail
-{
+#if defined(_WIN32)
 /**
+ * Return the size required to encode a wide string
+ * @param s wide string to be encoded
+ * @return required size for encoding
+ */
+size_t get_wide_string_encoding_size(std::wstring_view s);
+
+/**
+ * Converts a wide string to a narrow string
+ */
+void wide_string_to_narrow(void* dest, size_t required_bytes, std::wstring_view s);
+#endif
+
+ /**
  * Portable gmtime_r or _s per operating system
  * @param timer to a time_t object to convert
  * @param buf to a struct tm object to store the result
@@ -78,57 +86,22 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD uint32_t get_thread_id() noexcept;
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD uint32_t get_process_id() noexcept;
 
 /**
- * Gets the page size
- * @return the size of the page
- */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD size_t get_page_size() noexcept;
-
-/**
  * Aligned alloc
- * @param alignment specifies the alignment. Must be a valid alignment supported by the implementation.
  * @param size number of bytes to allocate. An integral multiple of alignment
+ * @param alignment specifies the alignment. Must be a valid alignment supported by the implementation.
+ * @param huge_pages allocate huge pages, only suported on linux
  * @return On success, returns the pointer to the beginning of newly allocated memory.
- * To avoid a memory leak, the returned pointer must be deallocated with aligned_free().
+ * To avoid a memory leak, the returned pointer must be deallocated with free_aligned().
  * @throws  std::system_error on failure
  */
-QUILL_NODISCARD void* aligned_alloc(size_t alignment, size_t size);
+
+QUILL_NODISCARD void* alloc_aligned(size_t size, size_t alignment, bool huge_pages = false);
 
 /**
- * Free aligned memory allocated with aligned_alloc
+ * Free aligned memory allocated with alloc_aligned
  * @param ptr address to aligned memory
  */
-void aligned_free(void* ptr) noexcept;
-
-/**
- * Opens a file
- * @param filename name of file
- * @param mode string containing a file access mode
- * @return a FILE* pointer to opened file
- * @throws std::system_error on failure
- */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD FILE* fopen(filename_t const& filename, std::string const& mode);
-
-/**
- * Calculates the size of a file
- * @param file a valid pointer to the file
- * @return the size of the file
- * @throws std::runtime_error on failure
- */
-QUILL_NODISCARD QUILL_ATTRIBUTE_COLD size_t fsize(FILE* file);
-
-/**
- * Removes a file
- * @param filename the name of the file to remove
- * @return ​Zero​ upon success or non-zero value on error.
- */
-QUILL_ATTRIBUTE_COLD int remove(filename_t const& filename) noexcept;
-
-/**
- * Rename a file
- * @param previous_file previous file name
- * @param new_file new file name
- */
-QUILL_ATTRIBUTE_COLD void rename(filename_t const& previous_file, filename_t const& new_file);
+void free_aligned(void* ptr) noexcept;
 
 /**
  * inverses of gmtime
@@ -150,14 +123,9 @@ QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool is_colour_terminal() noexcept;
  */
 QUILL_NODISCARD QUILL_ATTRIBUTE_COLD bool is_in_terminal(FILE* file) noexcept;
 
-#if defined(_WIN32)
 /**
- * Given a wide character fmt memory buffer convert it to a memory buffer
- * @param w_mem_buffer [in] wide buffer input
- * @param mem_buffer [out] output
+ * fsync the file descriptor
+ * @param f file
  */
-void wstring_to_utf8(fmt::wmemory_buffer const& w_mem_buffer, fmt::memory_buffer& mem_buffer);
-#endif
-
-} // namespace detail
-} // namespace quill
+bool fsync(FILE* f);
+} // namespace quill::detail

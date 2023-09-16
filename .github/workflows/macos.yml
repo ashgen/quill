@@ -4,20 +4,28 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
   pull_request:
     branches:
       - master
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 jobs:
   build:
-    runs-on: macos-10.15
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        build_type: [Debug, Release]
-        std: [17]
+        os: [ macos-11 ]
+        build_type: [ Debug, Release ]
+        std: [ 17, 20 ]
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Create Build Environment
       run: cmake -E make_directory ${{runner.workspace}}/build
@@ -31,8 +39,12 @@ jobs:
 
     - name: Build
       working-directory: ${{runner.workspace}}/build
-      run: cmake --build . --config ${{matrix.build_type}}
+      run: |
+        threads=`sysctl -n hw.logicalcpu`
+        cmake --build . --config ${{matrix.build_type}} --parallel $threads
 
     - name: Test
       working-directory: ${{runner.workspace}}/build
-      run: ctest --build-config ${{matrix.build_type}} --verbose --output-on-failure --parallel 2
+      run: |
+        threads=`sysctl -n hw.logicalcpu`
+        ctest --build-config ${{matrix.build_type}} --parallel $threads --output-on-failure

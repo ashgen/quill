@@ -15,14 +15,15 @@
   // assume x86-64 ..
   #if defined(_WIN32)
     #include <intrin.h>
+  #elif ((defined(__GNUC__) && __GNUC__ > 10) && !defined(__INTEL_COMPILER)) || (defined(__clang_major__) && __clang_major__ > 11)
+    #include <x86gprintrin.h>
   #else
+    // older compiler versions do not have <x86gprintrin.h>
     #include <x86intrin.h>
   #endif
 #endif
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 #if defined(__aarch64__)
 // arm64
@@ -33,7 +34,7 @@ QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept
   // read at CNTFRQ special register.  We assume the OS has set up the virtual timer properly.
   int64_t virtual_timer_value;
   __asm__ volatile("mrs %0, cntvct_el0" : "=r"(virtual_timer_value));
-  return virtual_timer_value;
+  return static_cast<uint64_t>(virtual_timer_value);
 }
 #elif defined(__ARM_ARCH)
 QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept
@@ -65,6 +66,12 @@ QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept
   // soft failover
   return static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
 }
+#elif (defined(__PPC64__))
+QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept
+{
+  // soft failover
+  return static_cast<uint64_t>(std::chrono::system_clock::now().time_since_epoch().count());
+}
 #else
 /**
  * Get the TSC counter
@@ -73,5 +80,4 @@ QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept
 QUILL_NODISCARD_ALWAYS_INLINE_HOT uint64_t rdtsc() noexcept { return __rdtsc(); }
 #endif
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

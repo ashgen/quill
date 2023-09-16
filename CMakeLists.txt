@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.1.0)
-project(my_project)
+cmake_minimum_required(VERSION 3.8)
+project(quill)
 
 #-------------------------------------------------------------------------------------------------------
 # Options
@@ -9,7 +9,7 @@ option(QUILL_FMT_EXTERNAL "Use external fmt library instead of bundled" OFF)
 
 option(QUILL_NO_EXCEPTIONS "Build without exceptions with -fno-exceptions flag" OFF)
 
-option(QUILL_USE_BOUNDED_QUEUE "Build with bounded queue instead of unbounded" OFF)
+option(QUILL_DISABLE_POSITION_INDEPENDENT_CODE "Disable position-independent code" OFF)
 
 option(QUILL_BUILD_EXAMPLES "Build the examples" OFF)
 
@@ -27,14 +27,14 @@ option(QUILL_USE_VALGRIND "Use valgrind as the default memcheck tool in CTest (R
 
 option(QUILL_ENABLE_INSTALL "Enable CMake Install when Quill is not a master project" OFF)
 
+option(QUILL_NO_THREAD_NAME_SUPPORT "Disable features that are not supported on Windows 2012/2016" OFF)
+
+option(QUILL_DOCS_GEN "Generate documentation" OFF)
+
 #-------------------------------------------------------------------------------------------------------
 # Use newer policies if possible, up to most recent tested version of CMake.
 #-------------------------------------------------------------------------------------------------------
-if (${CMAKE_VERSION} VERSION_LESS 3.16)
-    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
-else ()
-    cmake_policy(VERSION 3.16)
-endif ()
+cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 
 #-------------------------------------------------------------------------------------------------------
 # Determine if quill is built as a subproject (using add_subdirectory) or if it is the master project.
@@ -47,7 +47,7 @@ endif ()
 #-------------------------------------------------------------------------------------------------------
 # Custom cmake functions
 #-------------------------------------------------------------------------------------------------------
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/quill/cmake" CACHE STRING "Modules for CMake" FORCE)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/quill/cmake")
 include(Utility)
 
 #-------------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ endif ()
 # Compiler config
 #---------------------------------------------------------------------------------------
 if (NOT CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 14)
+    set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif ()
 
@@ -101,9 +101,13 @@ endif ()
 if (QUILL_MASTER_PROJECT)
     option(QUILL_VERBOSE_MAKEFILE "Verbose make output" OFF)
 
-    message(STATUS "Build Type: " ${CMAKE_BUILD_TYPE})
-    message(STATUS "Quill Version: ${QUILL_VERSION}")
+    message(STATUS "CMAKE_BUILD_TYPE: " ${CMAKE_BUILD_TYPE})
+    message(STATUS "QUILL_VERSION: ${QUILL_VERSION}")
 endif ()
+
+message(STATUS "QUILL_NO_EXCEPTIONS: " ${QUILL_NO_EXCEPTIONS})
+message(STATUS "QUILL_FMT_EXTERNAL: " ${QUILL_FMT_EXTERNAL})
+message(STATUS "QUILL_NO_THREAD_NAME_SUPPORT: " ${QUILL_NO_THREAD_NAME_SUPPORT})
 
 #---------------------------------------------------------------------------------------
 # Verbose make file option
@@ -112,28 +116,9 @@ if (QUILL_VERBOSE_MAKEFILE)
     set(CMAKE_VERBOSE_MAKEFILE TRUE CACHE BOOL "Verbose output" FORCE)
 endif ()
 
-#-------------------------------------------------------------------------------------------------------
-# Additional Compiler Options
-#-------------------------------------------------------------------------------------------------------
-if (QUILL_NO_EXCEPTIONS)
-    add_definitions(-DQUILL_NO_EXCEPTIONS)
-endif ()
-
-if (QUILL_USE_BOUNDED_QUEUE)
-    add_definitions(-DQUILL_USE_BOUNDED_QUEUE)
-endif ()
-
-if (QUILL_FMT_EXTERNAL)
-    add_definitions(-DQUILL_FMT_EXTERNAL)
-endif ()
-
-message(STATUS "QUILL_NO_EXCEPTIONS: " ${QUILL_NO_EXCEPTIONS})
-message(STATUS "QUILL_USE_BOUNDED_QUEUE: " ${QUILL_USE_BOUNDED_QUEUE})
-message(STATUS "QUILL_FMT_EXTERNAL: " ${QUILL_FMT_EXTERNAL})
-
 # address sanitizer flags
 if (QUILL_SANITIZE_ADDRESS)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer -g")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,undefined -fno-omit-frame-pointer -g")
 endif ()
 
 # thread sanitizer flags
@@ -157,3 +142,9 @@ if (QUILL_BUILD_BENCHMARKS)
 endif ()
 
 add_subdirectory(quill)
+
+if (QUILL_DOCS_GEN)
+    # Add the cmake folder so the FindSphinx module is found
+    set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
+    add_subdirectory(docs)
+endif ()

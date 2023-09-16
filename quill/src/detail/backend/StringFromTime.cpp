@@ -33,7 +33,7 @@ std::pair<std::string, std::string> _split_timestamp_format_once(std::string& ti
     if (search != std::string::npos)
     {
       // Add the index and the modifier string to our map
-      found_format_modifiers.insert(std::make_pair(search, modifier));
+      found_format_modifiers.emplace(std::make_pair(search, modifier));
     }
   }
 
@@ -64,9 +64,7 @@ std::pair<std::string, std::string> _split_timestamp_format_once(std::string& ti
 }
 } // namespace
 
-namespace quill
-{
-namespace detail
+namespace quill::detail
 {
 
 /***/
@@ -138,18 +136,17 @@ std::string const& StringFromTime::format_timestamp(time_t timestamp)
     _pre_formatted_ts.clear();
     _cached_indexes.clear();
 
-    // Now populate a pre formatted string for the next rec
-    _populate_pre_formatted_string_and_cached_indexes(_next_recalculation_timestamp);
+    // Now populate a pre-formatted string for the next rec
+    _populate_pre_formatted_string_and_cached_indexes(timestamp);
 
     if (_time_zone == Timezone::LocalTime)
     {
-      // Update the timestamp to point to the next hour, here we can just add 3600 as the _next_hour_timestamp was already rounded to point to sharp minutes before
-      _next_recalculation_timestamp += 3600;
+      _next_recalculation_timestamp = next_hour_timestamp(timestamp);
     }
     else if (_time_zone == Timezone::GmtTime)
     {
       _next_recalculation_timestamp =
-        next_noon_or_midnight_timestamp(_next_recalculation_timestamp + 1, _time_zone);
+        next_noon_or_midnight_timestamp(timestamp + 1, _time_zone);
     }
   }
 
@@ -374,5 +371,4 @@ void StringFromTime::_populate_pre_formatted_string_and_cached_indexes(time_t ti
   }
 }
 
-} // namespace detail
-} // namespace quill
+} // namespace quill::detail

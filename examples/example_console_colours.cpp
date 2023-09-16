@@ -8,7 +8,9 @@
 int main()
 {
   // Enable console colours on the default constructed handler to stdout before calling quill:start()
-  quill::enable_console_colours();
+  quill::Config cfg;
+  cfg.enable_console_colours = true;
+  quill::configure(cfg);
 
   // Start the logging backend thread
   quill::start();
